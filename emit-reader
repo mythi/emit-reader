@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import time
+import argparse
+import csv
+import serial
+import json
+import datetime
+from emit import Emit
+
+parser = argparse.ArgumentParser(description='EMIT-lukija')
+
+parser.add_argument('-s', '--serial', nargs=1, default=['/dev/ttyUSB0'],
+                    help='Sarjaportti')
+parser.add_argument('-t', '--timeout', nargs=1, default=[10],
+                    help='Tulokset näkyvillä ruudulla (s)')
+parser.add_argument('-e', '--end', nargs=1, default=['2018-05-20 03:00'],
+                    help='Kilpailun loppumisaika')
+parser.add_argument('-c', '--cp', nargs=2,
+                    help='Rastipari(e)n alku- ja loppukoodit')
+parser.add_argument('-r', '--route', nargs='*',
+                    help='Reitin koodit')
+parser.add_argument('-f', '--file', nargs=1, required=True,
+                    help='Tietokantatiedosto (JSON)')
+parser.add_argument('-l', '--length', nargs=1, default=[1],
+                    help='Rastipari(en) (viuhkan) maksimipituus')
+
+params = parser.parse_args()
+
+
+class Database:
+    def __init__(self, filename):
+        self.data = dict()
+        self.filename = filename
+
+        with open(self.filename, 'r') as db:
+            self.data = json.load(db)
+
+    def search(self, value):
+        idx = 0
+        for i in self.data:
+            for j in i.keys():
+                if i[j] == value:
+                    return idx
+            idx += 1
+        return -1
+
+    def flush(self):
+        with open(self.filename, 'w+') as fh:
+            json.dump(self.data, fh, indent=4)
+
+    def add_id(self, index, emit):
+        self.data[index]['emit'] = str(emit)
+        self.flush()
+
+    def has_id(self, emit):
+        return self.search(str(emit))
+
+    def has_bib(self, bib):
+        return self.search(bib)
+
+    def add(self, index, key, value):
+        self.data[index][key] = value
+        self.flush()
+
+
+def clear_screen():
+    print("\033[2J\033[;H")
+    # TODO: Windows: os.system('CLS')
+
+def print_time(time_end, wait=0):
+    time_now = datetime.datetime.now()
+
+    time_str = 'KELLO ON %s. ' % time_now.strftime("%H:%M")
+
+    if time_end < time_now:
+        time_str += 'TEHTÄVÄAIKA PÄÄTTYNYT.'
+    else:
+        time_delta = time_end - time_now
+
+        hours, remainder = divmod(time_delta.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        time_delta_str = 'TEHTÄVÄAIKAA JÄLJELLÄ %02d:%02d:%02d.' % (hours, minutes, seconds)
+
+        time_str += time_delta_str
+
+    if wait:
+        time_str += '\n\nODOTA.\n\n'
+    else:
+        time_str += '\n\nLUE EMIT.\n\n'
+
+    print(time_str)
+
+
+def check_input(bib, maxbib):
+    try:
+        bibnum = int(bib)
+    except ValueError:
+        print('\n%s ei ole kelvollinen numero.\n' % bib)
+        return 0
+
+    if bibnum > maxbib:
+        print('\n%s ei ole kelvollinen numero.\n' % bibnum)
+        return 0
+
+    return bibnum
+
+
+def check_viuhka(pairs, emit_codes, max_len):
+    accepted = dict()
+    rejected = dict()
+
+    for start, end, split in pairs:
+        done = 0
+
+        for i in range(start+1, end):
+            cp = emit_codes[i]
+
+            if done < max_len:
+                if cp not in accepted:
+                    accepted[cp] = str(split)
+                    done += 1
+                    continue
+                else:
+                    rejected[cp] = "rastilla on jo käyty aiemmin"
+            else:
+                rejected[cp] = "viuhka täynnä"
+
+    return (accepted, rejected)
+
+
+if __name__ == '__main__':
+    if params.route:
+        route = [int(x) for x in params.route]
+        check_pairs = 0
+    elif params.cp:
+        start_cp = int(params.cp[0])
+        end_cp = int(params.cp[1])
+        check_pairs = 1
+    else:
+        sys.exit(1)
+
+    max_len = int(params.length[0])
+    time_end = datetime.datetime.strptime(params.end[0], "%Y-%m-%d %H:%M")
+
+    ser = serial.Serial(params.serial[0], 9600, stopbits=2, timeout=60)
+    db = Database(params.file[0])
+
+    while 1:
+        clear_screen()
+        print_time(time_end)
+
+        ser.reset_input_buffer()
+
+        data = ser.read(217)
+        if len(data) < 217:
+            continue
+
+        try:
+            emit = Emit(data)
+        except ValueError as e:
+            print('Virhe: %s. Lue uudelleen.' % str(e))
+            time.sleep(1)
+            continue
+        except OSError as os:
+            print('Virhe: %s. Lue uudelleen.' % str(os))
+            time.sleep(1)
+            continue
+
+        clear_screen()
+
+        db_index = db.has_id(emit.id)
+        if db_index < 0:
+            while db_index < 0:
+                bib = input('Anna joukkueen numero: ')
+
+                bibnum = check_input(bib, 500)
+                if not bibnum:
+                    time.sleep(1)
+                    continue
+
+                db_index = db.has_bib(bib)
+                if db_index < 0:
+                    print('\nNumeroa %s ei löytynyt.\n' % bibnum)
+                    time.sleep(1)
+                    continue
+
+                db.add_id(db_index, emit.id)
+
+        clear_screen()
+        print_time(time_end, 1)
+
+        print("## %s %s ##" % (db.data[db_index]['numero'],
+                db.data[db_index]['joukkue']))
+
+        if check_pairs:
+            pairs = emit.find_pairs(start_cp, end_cp)
+
+            runtime = datetime.timedelta()
+            for _, _, k in pairs:
+                runtime = runtime + k
+
+            print("Käytetty aika: %s" % str(runtime))
+
+            accepted, rejected = check_viuhka(pairs, emit.codes, max_len)
+
+            db.add(db_index, 'aika', str(runtime))
+            db.add(db_index, 'pisteet', str(len(accepted)))
+            db.add(db_index, 'hyvaksytyt', accepted)
+            db.add(db_index, 'hylatyt', rejected)
+        else:
+            status = emit.check_route(route)
+            split = 0
+
+            if not status:
+                idx = emit.codes.index(route[-1])
+                _, split = emit.results[idx]
+
+            split_str = str(datetime.timedelta(seconds=split))
+
+            print("Reitti: %s" % ('HYL' if status else 'OK'))
+            print("Aika: %s" % split_str)
+
+            emit.dump_controls()
+
+            db.add(db_index, 'status', 'HYL' if status else 'OK')
+            db.add(db_index, 'aika', split_str)
+
+        time.sleep(int(params.timeout[0]))
+        emit.write_file()
+
+    ser.close()
+    sys.exit(0)
