@@ -224,13 +224,10 @@ if __name__ == '__main__':
             print("Reitti: %s" % ('HYL' if status else 'OK'))
             print("Aika: %s" % split_str)
 
-            emit.dump_controls()
-
             db.add(db_index, 'status', 'HYL' if status else 'OK')
             db.add(db_index, 'aika', split_str)
 
         time.sleep(int(params.timeout[0]))
-        emit.write_file()
 
     ser.close()
     sys.exit(0)
