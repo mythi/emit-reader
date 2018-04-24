@@ -67,8 +67,7 @@ class Database:
 
 
 def clear_screen():
-    print("\033[2J\033[;H")
-    # TODO: Windows: os.system('CLS')
+    print("\x1b[2J\x1b[;H")
 
 def print_time(time_end, wait=0):
     time_now = datetime.datetime.now()
