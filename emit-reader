@@ -24,8 +24,6 @@ parser.add_argument('-r', '--route', nargs='*',
                     help='Reitin koodit')
 parser.add_argument('-f', '--file', nargs=1, required=True,
                     help='Tietokantatiedosto (JSON)')
-parser.add_argument('-l', '--length', nargs=1, default=[1],
-                    help='Rastipari(en) (viuhkan) maksimipituus')
 
 params = parser.parse_args()
 
@@ -108,7 +106,7 @@ def check_input(bib, maxbib):
     return bibnum
 
 
-def check_viuhka(pairs, emit_codes, max_len):
+def check_viuhka(pairs, emit_codes, max_len=1):
     accepted = dict()
     rejected = dict()
 
@@ -142,7 +140,6 @@ if __name__ == '__main__':
     else:
         sys.exit(1)
 
-    max_len = int(params.length[0])
     time_end = datetime.datetime.strptime(params.end[0], "%Y-%m-%d %H:%M")
 
     ser = serial.Serial(params.serial[0], 9600, stopbits=2, timeout=60)
@@ -204,7 +201,7 @@ if __name__ == '__main__':
 
             print("Käytetty aika: %s" % str(runtime))
 
-            accepted, rejected = check_viuhka(pairs, emit.codes, max_len)
+            accepted, rejected = check_viuhka(pairs, emit.codes)
 
             db.add(db_index, 'aika', str(runtime))
             db.add(db_index, 'pisteet', str(len(accepted)))
