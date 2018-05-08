@@ -106,15 +106,26 @@ def check_input(bib, maxbib):
     return bibnum
 
 
-def check_viuhka(pairs, emit_codes, max_len=1):
+def check_viuhka(pairs, emit_codes, max_len=1, max_seconds=3600, blacklist=[]):
     accepted = dict()
     rejected = dict()
+
+    runtime = datetime.timedelta()
+    max_runtime = datetime.timedelta(seconds=max_seconds)
 
     for start, end, split in pairs:
         done = 0
 
         for i in range(start+1, end):
             cp = emit_codes[i]
+
+            if cp in blacklist:
+                rejected[cp] = "rasti ei kuulu sarjalle"
+                continue
+
+            if split+runtime > max_runtime:
+                rejected[cp] = "rastilla on käyty yliajalla"
+                continue
 
             if done < max_len:
                 if cp not in accepted:
@@ -125,6 +136,8 @@ def check_viuhka(pairs, emit_codes, max_len=1):
                     rejected[cp] = "rastilla on jo käyty aiemmin"
             else:
                 rejected[cp] = "viuhka täynnä"
+
+        runtime += split
 
     return (accepted, rejected)
 
@@ -189,8 +202,9 @@ if __name__ == '__main__':
         clear_screen()
         print_time(time_end, 1)
 
-        print("## %s %s ##" % (db.data[db_index]['numero'],
-                db.data[db_index]['joukkue']))
+        bib = db.data[db_index]['numero']
+        team = db.data[db_index]['joukkue']
+        serie = db.data[db_index]['sarja']
 
         if check_pairs:
             pairs = emit.find_pairs(start_cp, end_cp)
@@ -201,7 +215,24 @@ if __name__ == '__main__':
 
             print("Käytetty aika: %s" % str(runtime))
 
-            accepted, rejected = check_viuhka(pairs, emit.codes)
+            config = {
+                    'HA' : {'len': 2, 'time': 5400, 'blacklist': [50,60]},
+                    'RU' : {'len': 2, 'time': 5400, 'blacklist': [50,60]},
+                    'VP' : {'len': 3, 'time': 3600, 'blacklist': [50,60]},
+                    'SI' : {'len': 3, 'time': 3600, 'blacklist': [50,60]},
+                    'PU' : {'len': 3, 'time': 3600, 'blacklist': [17,15]}
+                    }
+
+            try:
+                max_len = config[serie]['len']
+                max_time = config[serie]['time']
+                blacklist = config[serie]['blacklist']
+            except KeyError:
+                max_len = 1
+                max_time = 3600
+                blacklist = []
+
+            accepted, rejected = check_viuhka(pairs, emit.codes, max_len, max_time, blacklist)
 
             db.add(db_index, 'aika', str(runtime))
             db.add(db_index, 'pisteet', str(len(accepted)))
