@@ -106,8 +106,8 @@ class Emit:
         print('{:>21}'.format('-------'))
         print('{:>21}'.format(str(splittime)))
 
-    def write_file(self):
-        fn = "%s.bin" % self.id
+    def write_file(self, suffix=''):
+        fn = "%s%s.bin" % (self.id, suffix)
 
         with open(fn, 'wb') as emit_file:
             emit_file.write(
