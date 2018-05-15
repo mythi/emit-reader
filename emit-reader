@@ -16,7 +16,7 @@ parser.add_argument('-s', '--serial', nargs=1, default=['/dev/ttyUSB0'],
                     help='Sarjaportti')
 parser.add_argument('-t', '--timeout', nargs=1, default=[10],
                     help='Tulokset näkyvillä ruudulla (s)')
-parser.add_argument('-e', '--end', nargs=1, default=['2018-05-20 03:00'],
+parser.add_argument('-e', '--end', nargs=1, default=['2018-05-20 03:30'],
                     help='Kilpailun loppumisaika')
 parser.add_argument('-c', '--cp', nargs=2,
                     help='Rastipari(e)n alku- ja loppukoodit')
@@ -47,7 +47,7 @@ class Database:
 
     def flush(self):
         with open(self.filename, 'w+') as fh:
-            json.dump(self.data, fh, indent=4)
+            json.dump(self.data, fh)
 
     def add_id(self, index, emit):
         self.data[index]['emit'] = str(emit)
@@ -186,7 +186,7 @@ if __name__ == '__main__':
             while db_index < 0:
                 bib = input('Anna joukkueen numero: ')
 
-                bibnum = check_input(bib, 500)
+                bibnum = check_input(bib, 600)
                 if not bibnum:
                     time.sleep(1)
                     continue
