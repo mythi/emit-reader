@@ -208,6 +208,25 @@ if __name__ == '__main__':
 
         if check_pairs:
             pairs = emit.find_pairs(start_cp, end_cp)
+            codes = emit.codes
+
+            fn = "%s_2.bin" % emit.id
+
+            if 'nollattu' in db.data[db_index] and os.path.isfile(fn):
+                with open(fn, 'rb') as emit_file:
+                    emit_2 = Emit(emit_file.read())
+
+                offset = len(emit_2.codes)
+                pairs = [(s + offset, e + offset, t) for s, e, t in pairs]
+
+                pairs = emit_2.find_pairs(start_cp, end_cp) + pairs
+                codes = emit_2.codes + codes
+
+            if len(emit.codes) > 47:
+                emit.write_file('_2')
+                input('EMIT täynnä! Nollaa EMIT (neljä vilkkua) ja hyväksy enterillä.')
+                db.add(db_index, 'nollattu', 1)
+                print('\n')
 
             runtime = datetime.timedelta()
             for _, _, k in pairs:
@@ -232,12 +251,14 @@ if __name__ == '__main__':
                 max_time = 3600
                 blacklist = []
 
-            accepted, rejected = check_viuhka(pairs, emit.codes, max_len, max_time, blacklist)
+            accepted, rejected = check_viuhka(pairs, codes, max_len, max_time, blacklist)
 
             db.add(db_index, 'aika', str(runtime))
             db.add(db_index, 'pisteet', str(len(accepted)))
             db.add(db_index, 'hyvaksytyt', accepted)
             db.add(db_index, 'hylatyt', rejected)
+
+            emit.write_file()
         else:
             status = emit.check_route(route)
             split = 0
