@@ -114,4 +114,4 @@ class Emit:
                     struct.pack('<217B', *[x ^ 223 for x in self.ebytes])
                     )
 
-        print("Kirjoitettu %s" % fn)
+        print("tallennettu %s" % fn)

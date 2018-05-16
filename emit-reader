@@ -228,12 +228,6 @@ if __name__ == '__main__':
                 db.add(db_index, 'nollattu', 1)
                 print('\n')
 
-            runtime = datetime.timedelta()
-            for _, _, k in pairs:
-                runtime = runtime + k
-
-            print("Käytetty aika: %s" % str(runtime))
-
             config = {
                     'HA' : {'len': 2, 'time': 5400, 'blacklist': [50,60]},
                     'RU' : {'len': 2, 'time': 5400, 'blacklist': [50,60]},
@@ -252,6 +246,19 @@ if __name__ == '__main__':
                 blacklist = []
 
             accepted, rejected = check_viuhka(pairs, codes, max_len, max_time, blacklist)
+
+            runtime = datetime.timedelta()
+            for _, _, k in pairs:
+                runtime = runtime + k
+
+            end = datetime.timedelta(seconds=max_time)
+            if runtime > end:
+                time_str = 'AIKA LOPPU!'
+            else:
+                time_str = str(end-runtime)
+            print("%s %s (%s):\n" % (bib, team, serie))
+            print("\t* vartion suoritusaikaa jäljellä: %s" % time_str)
+            print("\t* kerätyt pisteet: %s\n\n" % len(accepted))
 
             db.add(db_index, 'aika', str(runtime))
             db.add(db_index, 'pisteet', str(len(accepted)))
