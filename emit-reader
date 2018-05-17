@@ -4,7 +4,6 @@ import sys
 import os
 import time
 import argparse
-import csv
 import serial
 import json
 import datetime
@@ -50,11 +49,16 @@ class Database:
             json.dump(self.data, fh)
 
     def add_id(self, index, emit):
-        self.data[index]['emit'] = str(emit)
+        self.data[index]['emit'].append(emit)
         self.flush()
 
     def has_id(self, emit):
-        return self.search(str(emit))
+        idx = 0
+        for i in self.data:
+            if emit in i['emit']:
+                return idx
+            idx += 1
+        return -1
 
     def has_bib(self, bib):
         return self.search(bib)
